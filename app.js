@@ -1,0 +1,78 @@
+'use strict';
+const C=Dock,$=s=>document.querySelector(s),KEY=C.KEY;
+const labels={link:'サイト・管理画面',task:'やること',template:'定型文',note:'メモ'},icons={link:'↗',task:'✓',template:'▤',note:'▧'};
+let raw=null,data,blocked=false,view='all',query='',editing=null,readerId=null,formStart='',editorRaw=null,undoState=null,toastTimer,taskScope='today',showDone=false,limit={},currentDay=C.today(),pendingConfirm=null;
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function load(){try{raw=localStorage.getItem(KEY);data=raw===null?C.initial():C.validate(JSON.parse(raw));blocked=false;$('#notice').hidden=true;}catch(e){blocked=true;data={app:'work-dock',version:1,items:[]};$('#notice').textContent='保存データを読み込めません。データ保護のため保存を停止しています。「バックアップ・復元」から元データの書き出し、または正常なバックアップの復元ができます。';$('#notice').hidden=false;}}
+function toast(message,undo=false){clearTimeout(toastTimer);$('#toast span').textContent=message;$('#undo').hidden=!undo;$('#toast').hidden=false;toastTimer=setTimeout(()=>{$('#toast').hidden=true;},undo?12000:4500);}
+function save(next,{recover=false}={}){
+  if(blocked&&!recover){toast('保存を停止しています。バックアップ画面を確認してください。');return false;}
+  try{const latest=localStorage.getItem(KEY);if(latest!==raw){load();undoState=null;render();toast('別タブの変更を読み込みました。内容を確認して、もう一度操作してください。');return false;}
+    C.validate(next);const text=JSON.stringify(next);localStorage.setItem(KEY,text);raw=text;data=next;blocked=false;$('#notice').hidden=true;undoState=null;render();return true;
+  }catch(e){toast('保存できません。空き容量やブラウザの保存設定を確認してください。');return false;}
+}
+function change(fn){const next=structuredClone(data);fn(next);return save(next);}
+function find(id){return data.items.find(i=>i.id===id);}
+function star(i){return `<button class="star" data-action="favorite" data-id="${esc(i.id)}" aria-label="${esc(i.title)}を${i.favorite?'お気に入りから外す':'お気に入りに固定'}" aria-pressed="${i.favorite}">${i.favorite?'★':'☆'}</button>`;}
+function matches(i){return !query||[i.title,i.body,i.url].some(s=>s.toLocaleLowerCase().includes(query));}
+function taskDate(i){return i.date===C.today()?'今日':i.date<C.today()?`${i.date.slice(5).replace('-','/')}・未完了`:`${i.date.slice(5).replace('-','/')} の予定`;}
+function favoriteCard(i){const action=i.type==='link'?`<a class="card-primary" href="${esc(C.url(i.url))}" target="_blank" rel="noopener noreferrer">開く ↗</a>`:i.type==='task'?`<button class="card-primary" data-action="toggle" data-id="${esc(i.id)}">${i.done?'未完了に戻す':'✓ 完了にする'}</button>`:`<button class="card-primary" data-action="copy" data-id="${esc(i.id)}">本文をコピー</button>`;
+  return `<article class="favorite-card type-${i.type}" data-fav-id="${esc(i.id)}"><div class="favorite-top"><span class="item-icon">${icons[i.type]}</span><div class="favorite-title">${esc(i.title)}<div class="item-kind">${labels[i.type]}${i.type==='task'?' · '+esc(taskDate(i)):''}</div></div>${star(i)}</div>${action}</article>`;
+}
+function card(i){const id=esc(i.id),isTask=i.type==='task';let heading=i.type==='link'?`<a class="item-name link-main" href="${esc(C.url(i.url))}" target="_blank" rel="noopener noreferrer">${esc(i.title)} ↗<span class="domain">${esc(new URL(C.url(i.url)).hostname)}</span></a>`:`<div class="item-name">${esc(i.title)}</div>`;
+  return `<article class="item type-${i.type} ${i.done?'done':''}" data-item-id="${id}"><div class="item-top">${isTask?`<button class="task-toggle" data-action="toggle" data-id="${id}" aria-label="${esc(i.title)}を${i.done?'未完了に戻す':'完了にする'}" aria-pressed="${i.done}"><span>${i.done?'✓':''}</span></button>`:''}<div class="item-content">${heading}${isTask?`<p class="task-date ${i.date<C.today()&&!i.done?'overdue':''}">${esc(i.done?i.date+'・完了':taskDate(i))}</p>`:''}${i.body?`<p class="item-description">${esc(i.body)}</p>`:''}</div>${star(i)}</div><div class="item-actions"><button data-action="edit" data-id="${id}">編集</button><button class="delete" data-action="delete" data-id="${id}" aria-label="${esc(i.title)}を削除">削除</button>${i.body?`<button data-action="read" data-id="${id}">全文</button>`:''}${['template','note'].includes(i.type)?`<button class="copy" data-action="copy" data-id="${id}">コピー</button>`:''}</div></article>`;
+}
+function panel(type){let rows=data.items.filter(i=>i.type===type&&matches(i));if(type==='task')rows=rows.filter(i=>(taskScope==='all'||i.date<=C.today())&&(showDone||!i.done));rows=C.sorted(rows);const max=limit[type]||20;
+  const empties={link:['よく使うサイトを、ひとまとめに。','「＋ 追加」からURLを登録できます。'],task:['今日のやることを、ひとつずつ。','未完了のタスクは翌日もここに残ります。'],template:['いつもの文章を、ワンクリックで。','返信文や案内文を保存してコピー。'],note:['忘れたくないことの置き場所。','大事な情報や、次にやることのメモに。']};
+  return `<section class="panel" data-panel="${type}"><div class="panel-head"><h2><span>${icons[type]}</span>${labels[type]}<small>${rows.length}</small></h2><button data-add="${type}">＋ 追加</button></div>${type==='task'?`<form id="quick-task" class="quick-task"><input id="quick-title" maxlength="120" required aria-label="今日やること" placeholder="今日やることを入力…"><button type="submit" class="primary" aria-label="今日のタスクを追加">＋</button></form><div class="task-options"><button data-scope="today" class="${taskScope==='today'?'active':''}" aria-pressed="${taskScope==='today'}">今日まで</button><button data-scope="all" class="${taskScope==='all'?'active':''}" aria-pressed="${taskScope==='all'}">すべての予定</button><button id="show-done" class="${showDone?'active':''}" aria-pressed="${showDone}">${showDone?'完了を隠す':'完了も表示'}</button></div>`:''}<div class="item-list">${rows.length?rows.slice(0,max).map(card).join(''):`<div class="empty"><strong>${query?'見つかりませんでした':empties[type][0]}</strong>${query?'検索する言葉を変えてみてください。':empties[type][1]}</div>`}</div>${rows.length>max?`<button class="show-more" data-more="${type}">さらに20件表示（残り${rows.length-max}件）</button>`:''}</section>`;
+}
+function render(){
+  $('#date-label').textContent=new Intl.DateTimeFormat('ja-JP',{month:'long',day:'numeric',weekday:'long'}).format(new Date());
+  $('#remaining').textContent=data.items.filter(i=>i.type==='task'&&!i.done&&i.date<=C.today()).length;
+  $('#page-title').textContent=view==='all'?'おかえりなさい。':view==='favorite'?'お気に入り':labels[view];$('#page-subtitle').textContent=view==='all'?'いつもの仕事は、ここから。':view==='favorite'?'よく使うものを、いちばん近くに。':'探して、すぐに使う。';
+  document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false');});
+  const fav=C.sorted(data.items.filter(i=>i.favorite&&matches(i)&&!(i.type==='task'&&i.done)));$('#favorites-section').hidden=!['all','favorite'].includes(view);const max=limit.favorite||12;
+  $('#favorites').innerHTML=fav.length?fav.slice(0,max).map(favoriteCard).join('')+(fav.length>max?`<button data-more="favorite" class="show-more">さらに12件表示</button>`:''):'<div class="favorite-empty">各項目の ☆ を押すと、ここに固定できます。</div>';
+  const types=view==='all'?Object.keys(labels):view==='favorite'?[]:[view];$('#board').classList.toggle('single',view!=='all');$('#board').innerHTML=types.map(panel).join('');
+  $('#results-label').textContent=query?`「${$('#search').value}」の検索結果` :'';
+}
+function ask(title,body,yes='実行する'){return new Promise(resolve=>{pendingConfirm=resolve;$('#confirm-title').textContent=title;$('#confirm-body').textContent=body;$('#confirm-yes').textContent=yes;$('#confirm').showModal();});}
+function resolveConfirm(value){$('#confirm').close();const resolve=pendingConfirm;pendingConfirm=null;resolve?.(value);}
+$('#confirm-yes').onclick=()=>resolveConfirm(true);$('#confirm-no').onclick=()=>resolveConfirm(false);$('#confirm').addEventListener('cancel',e=>{e.preventDefault();resolveConfirm(false);});
+function formSnapshot(){return JSON.stringify([...new FormData($('#item-form'))]);}
+function fields(){const t=$('#item-type').value;$('#url-field').hidden=t!=='link';$('#item-url').required=t==='link';$('#date-field').hidden=t!=='task';$('#item-date').required=t==='task';$('#item-body').required=t==='template';$('#body-label').textContent=t==='template'?'コピーする文章':t==='note'?'メモ本文':'メモ（任意）';$('#item-title').placeholder={link:'例：広告管理画面',task:'例：日別実績を入力する',template:'例：お問い合わせへの返信',note:'例：今週の確認事項'}[t];}
+function openEditor(type='link',id=null){const item=id?find(id):null;if(id&&!item){toast('この項目は別タブで削除されました。');return;}editing=id;editorRaw=raw;$('#item-form').reset();$('#item-type').value=item?.type||type;$('#item-type').disabled=!!item;$('#item-title').value=item?.title||'';$('#item-url').value=item?.url||'';$('#item-date').value=item?.date||C.today();$('#item-body').value=item?.body||'';$('#item-favorite').checked=item?.favorite||false;$('#editor-title').textContent=item?'項目を編集':'項目を登録';$('#form-error').textContent='';fields();formStart=formSnapshot();$('#editor').showModal();$('#item-title').focus();}
+async function closeDialog(id){if(id==='editor'&&formSnapshot()!==formStart&&!await ask('入力を破棄しますか？','保存していない変更があります。','破棄する'))return;$('#'+id).close();}
+$('#editor').addEventListener('cancel',e=>{e.preventDefault();closeDialog('editor');});$('#item-type').onchange=fields;
+$('#item-form').onsubmit=e=>{e.preventDefault();if(editorRaw!==raw){$('#form-error').textContent='編集中に別タブで更新されました。入力内容を控えて閉じ、最新の項目を開き直してください。';return;}if(editing&&!find(editing)){$('#form-error').textContent='この項目は削除されています。閉じて新規登録してください。';return;}const type=$('#item-type').value,old=editing?find(editing):null;
+  try{const item={id:old?.id||C.uid(),type,title:$('#item-title').value.trim(),url:type==='link'?C.url($('#item-url').value):'',date:type==='task'?$('#item-date').value:'',body:$('#item-body').value,favorite:$('#item-favorite').checked,done:old?.done||false,created:old?.created||Date.now()};
+    C.validate({app:'work-dock',version:1,items:[item]});const next=structuredClone(data);if(old)next.items=next.items.map(i=>i.id===old.id?item:i);else next.items.push(item);
+    if(save(next)){$('#editor').close();toast(old?'変更を保存しました':'登録しました');}else $('#form-error').textContent='保存されていません。表示された案内を確認してください。';
+  }catch(err){$('#form-error').textContent=err.message;}
+};
+async function copyItem(id,button){const item=find(id);if(!item)return;const text=item.body||item.title;try{if(!navigator.clipboard?.writeText)throw Error('fallback');await navigator.clipboard.writeText(text);}catch(e){const area=document.createElement('textarea');area.value=text;area.style.cssText='position:fixed;opacity:0;top:0;left:0';const parent=document.querySelector('dialog[open]')||document.body;parent.append(area);area.select();let ok=false;try{ok=document.execCommand('copy');}catch(_){}area.remove();if(!ok){openReader(id);toast('自動コピーできません。本文を長押し・選択してコピーしてください。');return;}}toast('コピーしました');if(button?.isConnected){const before=button.textContent;button.textContent='✓ コピー済み';setTimeout(()=>{if(button.isConnected)button.textContent=before;},1800);}}
+function openReader(id){const item=find(id);if(!item)return;readerId=id;$('#reader-title').textContent=item.title;$('#reader-body').textContent=item.body||item.title;if(!$('#reader').open)$('#reader').showModal();}
+$('#reader-copy').onclick=e=>copyItem(readerId,e.currentTarget);$('#reader-edit').onclick=()=>{$('#reader').close();openEditor('note',readerId);};
+document.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.close){closeDialog(b.dataset.close);return;}if(b.dataset.view){view=b.dataset.view;limit={};render();return;}if(b.dataset.add){openEditor(b.dataset.add);return;}if(b.dataset.more){limit[b.dataset.more]=(limit[b.dataset.more]||(b.dataset.more==='favorite'?12:20))+(b.dataset.more==='favorite'?12:20);render();return;}if(b.dataset.scope){taskScope=b.dataset.scope;render();return;}if(b.id==='show-done'){showDone=!showDone;render();return;}
+  const id=b.dataset.id,item=find(id);if(!item)return;
+  switch(b.dataset.action){case 'favorite':change(d=>{const i=d.items.find(x=>x.id===id);i.favorite=!i.favorite;});break;
+    case 'toggle':{const title=item.title;if(change(d=>{const i=d.items.find(x=>x.id===id);i.done=!i.done;}))toast(item.done?'未完了に戻しました':`「${title}」を完了しました`);break;}
+    case 'edit':openEditor(item.type,id);break;case 'read':openReader(id);break;case 'copy':copyItem(id,b);break;
+    case 'delete':{const confirmedRaw=raw;if(await ask('この項目を削除しますか？',item.title,'削除する')){if(raw!==confirmedRaw){toast('別タブで更新されました。内容を確認して削除し直してください。');return;}const before=structuredClone(data);if(change(d=>{d.items=d.items.filter(i=>i.id!==id);})){undoState=before;toast('削除しました',true);}}break;}
+  }
+});
+document.addEventListener('submit',e=>{if(e.target.id!=='quick-task')return;e.preventDefault();const title=$('#quick-title').value.trim();if(!title){$('#quick-title').setCustomValidity('やることを入力してください。');$('#quick-title').reportValidity();return;}if(change(d=>d.items.push({id:C.uid(),type:'task',title,body:'',url:'',date:C.today(),done:false,favorite:false,created:Date.now()}))){toast('今日のタスクを追加しました');$('#quick-title')?.focus();}});
+document.addEventListener('input',e=>{if(e.target.id==='quick-title')e.target.setCustomValidity('');});
+$('#add-main').onclick=()=>openEditor(labels[view]?view:'link');$('#search').oninput=()=>{query=$('#search').value.trim().toLocaleLowerCase();limit={};render();};
+$('#undo').onclick=()=>{if(!undoState){toast('次の保存が行われたため、取り消せません。');return;}if(save(undoState))toast('元に戻しました');};
+function backupOpen(){$('#backup-status').textContent=blocked?'元データを保存してから復元してください。':'';$('#backup').showModal();}
+$('#backup-open').onclick=backupOpen;
+const mobileBackup=document.createElement('button');mobileBackup.id='backup-open-mobile';mobileBackup.className='subtle';mobileBackup.textContent='↥ バックアップ・復元';mobileBackup.onclick=backupOpen;document.querySelector('footer').append(mobileBackup);
+function download(content,name){const url=URL.createObjectURL(new Blob([content],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),15000);}
+$('#export').onclick=()=>{try{const latest=localStorage.getItem(KEY);download(latest===null?JSON.stringify(data,null,2):latest,`work-dock-${C.today()}${blocked?'-recovery':''}.json`);$('#backup-status').textContent='バックアップをダウンロードしました。';}catch(e){$('#backup-status').textContent='元データを読み出せませんでした。ブラウザの保存設定を確認してください。';}};
+$('#import').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>20*1024*1024)throw Error('ファイルが大きすぎます（上限20MB）。');const restored=C.validate(JSON.parse(await file.text())),confirmedRaw=raw;if(!await ask('バックアップから復元しますか？',`現在の${data.items.length}件を、ファイルの${restored.items.length}件で置き換えます。必要なら先に現在のバックアップを保存してください。`,'置き換えて復元'))return;if(raw!==confirmedRaw){$('#backup-status').textContent='別タブで更新されました。最新の内容を確認して、ファイルを選び直してください。';return;}if(save(restored,{recover:true})){$('#backup-status').textContent='復元しました。';toast('復元しました');}}catch(err){$('#backup-status').textContent='復元できません：'+err.message;}};
+window.addEventListener('storage',e=>{if(e.key!==KEY&&e.key!==null)return;const editorOpen=$('#editor').open;load();undoState=null;render();if(editorOpen){$('#form-error').textContent='別タブで更新されました。入力は残しています。閉じて最新内容を確認してください。';formStart='external-change';}toast('別タブの変更を読み込みました。');});
+window.addEventListener('beforeunload',e=>{if($('#editor').open&&formSnapshot()!==formStart){e.preventDefault();e.returnValue='';}});
+document.addEventListener('keydown',e=>{if(e.key==='/'&&!document.querySelector('dialog[open]')&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){e.preventDefault();$('#search').focus();}});
+function refreshDay(){if(currentDay!==C.today()){currentDay=C.today();render();}}setInterval(refreshDay,30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshDay();});
+load();render();
