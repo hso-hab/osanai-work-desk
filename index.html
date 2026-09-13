@@ -3,35 +3,50 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#176c59">
   <meta name="description" content="サイト、今日のタスク、定型文、メモをひとつのデスクに。毎日の探す・開く・コピーを短く。">
-  <title>Work Dock | 業務ショートカット</title>
-  <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css?v=1.1">
-  <script defer src="core.js?v=1.1"></script><script defer src="app.js?v=1.1"></script>
+  <title>Work Dock | 業務ホーム</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css?v=2.0">
+  <script defer src="core.js?v=2.0"></script><script defer src="vendor/lp-core.js?v=2.0"></script><script defer src="vendor/ad-core.js?v=2.0"></script><script defer src="insights.js?v=2.0"></script><script defer src="home.js?v=2.0"></script><script defer src="app.js?v=2.0"></script>
 </head>
 <body>
   <aside class="sidebar">
-    <a class="brand" href="./" aria-label="Work Dock ホーム"><span class="brand-icon">w<span>∙</span></span><span>Work Dock<small>いつもの仕事を、もっと軽く。</small></span></a>
+    <a class="brand" href="./" aria-label="Work Dock ホーム"><span class="brand-icon">w<span>∙</span></span><span>Work Dock<small>一日の仕事を、ここから。</small></span></a>
     <div class="nav-caption">MY WORKSPACE</div>
     <nav aria-label="表示する項目">
-      <button data-view="all" class="active"><span>▦</span>マイデスク</button>
+      <button data-view="all" class="active"><span>▦</span>業務ホーム</button>
+      <button data-view="library"><span>▦</span>すべての登録</button>
       <button data-view="link"><span>↗</span>サイト・管理画面</button>
       <button data-view="task"><span>✓</span>やること</button>
       <button data-view="template"><span>▤</span>定型文</button>
       <button data-view="note"><span>▧</span>メモ</button>
       <button data-view="favorite"><span>☆</span>お気に入り</button>
     </nav>
-    <div class="sidebar-foot"><div class="local-dot">このブラウザに保存</div><p>端末間の自動同期はありません。</p><button id="backup-open" class="subtle">↥ バックアップ・復元</button><small>WORK DOCK / 1.1</small></div>
+    <div class="sidebar-foot"><div class="local-dot">このブラウザに保存</div><p>端末間の自動同期はありません。</p><button id="backup-open" class="subtle">↥ バックアップ・復元</button><small>WORK DOCK / 2.0</small></div>
   </aside>
   <main>
-    <header class="topbar"><span class="workspace-label">YOUR DAILY SHORTCUTS</span><button id="add-main" class="primary">＋ 登録する</button></header>
+    <header class="topbar"><span class="workspace-label">DAILY WORK HOME</span><button id="add-main" class="primary">＋ タスクを追加</button></header>
     <section class="welcome"><div><p id="date-label" class="eyebrow"></p><h1 id="page-title">おかえりなさい。</h1><p id="page-subtitle">いつもの仕事は、ここから。</p></div><div class="daily-stat"><span class="stat-icon">✓</span><div><strong id="remaining">0</strong><span>今日までの未完了</span></div></div></section>
     <div class="searchbox"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="サイト・やること・定型文・メモを検索" aria-label="すべての項目を検索"><kbd>/</kbd></div>
     <p id="notice" role="alert" hidden></p>
-    <section id="recent-section" class="access-section" hidden><div class="section-heading"><h2>↗ 最近使ったサイト</h2><span>Work Dockから開いた順</span></div><div id="recent-links" class="access-grid"></div></section>
-    <section id="quick-copy-section" class="access-section" hidden><div class="section-heading"><h2>▤ よく使う定型文</h2><span>1クリックでコピー · ★で固定</span></div><div id="quick-copies" class="access-grid"></div></section>
+    <div id="next-action" class="next-action" role="status" hidden></div>
+    <section id="home" aria-label="今日の業務ホーム">
+      <div class="home-grid">
+        <section class="home-today home-card"><div class="section-heading"><h2>今日やること <span id="home-count" class="count"></span></h2><button data-view="task" class="subtle">全タスク →</button></div>
+          <form id="home-quick-task" class="quick-task"><input id="home-quick-title" maxlength="120" required aria-label="今日のタスクを入力" placeholder="今日やることを追加"><button type="submit" class="primary" aria-label="今日に追加">＋</button></form>
+          <div id="today-queue" class="today-queue"></div><div id="app-alerts" class="app-alerts"></div>
+        </section>
+        <section class="home-metrics home-card"><div class="section-heading"><h2>仕事の状況</h2><button id="refresh-insights" class="subtle">更新</button></div><div id="app-metrics"></div><details class="connection-note"><summary>このブラウザの保存データ · <span id="insight-time"></span></summary><p>同じブラウザ・同じ公開ドメインの保存分を読み取り専用で集計します。別端末・別ドメイン・CRMサーバー版のデータは対象外。各アプリの数字は合算しません。</p></details></section>
+        <section class="home-routines home-card"><div class="section-heading"><h2>いつもの作業 <span id="routine-progress" class="count"></span></h2><button id="routine-manage" class="subtle">編集</button></div><div id="routine-tabs" class="routine-tabs" role="group" aria-label="作業グループ"></div><div id="routine-steps"></div></section>
+      </div>
+    </section>
+    <div id="home-access" class="home-access">
+    <section id="recent-section" class="access-section" hidden><div class="section-heading"><h2>↗ 最近使ったサイト</h2><button data-view="link" class="subtle">すべて →</button></div><div id="recent-links" class="access-grid"></div></section>
+    <section id="quick-copy-section" class="access-section" hidden><div class="section-heading"><h2>▤ よく使う定型文</h2><button data-view="template" class="subtle">すべて →</button></div><div id="quick-copies" class="access-grid"></div></section>
+    </div>
+    <section id="home-notes" class="home-card" hidden></section>
     <section id="favorites-section" class="favorites-section"><div class="section-heading"><h2><span class="gold">★</span> いつものショートカット</h2><button class="sort-toggle" data-reorder="favorite" aria-pressed="false">並び替え</button></div><div id="favorites" class="favorite-grid"></div></section>
     <div id="results-label" class="results-label" aria-live="polite"></div>
     <div id="board" class="board"></div>
-    <footer>探す時間を減らして、今日の仕事に集中。<span>データ移行は「バックアップ・復元」から</span></footer>
+    <footer><span>Work Dock · このブラウザに保存</span></footer>
   </main>
   <dialog id="editor"><form id="item-form"><div class="dialog-head"><h2 id="editor-title">項目を登録</h2><button type="button" data-close="editor" aria-label="閉じる">×</button></div>
     <label>種類<select id="item-type" name="type"><option value="link">サイト・管理画面</option><option value="task">やること</option><option value="template">定型文</option><option value="note">メモ</option></select></label>
@@ -39,11 +54,14 @@
     <label id="url-field">URL<input id="item-url" name="url" type="text" inputmode="url" maxlength="4000" placeholder="https://..."></label>
     <label id="date-field" hidden>期限<input id="item-date" name="date" type="date"></label>
     <label id="body-field"><span id="body-label">メモ（任意）</span><textarea id="item-body" name="body" maxlength="20000" rows="6" placeholder="残しておきたい内容"></textarea></label>
+    <label id="category-field" hidden>カテゴリ<input id="item-category" name="category" maxlength="40" list="template-categories" placeholder="例：顧客対応・社内連絡"><datalist id="template-categories"></datalist></label>
+    <label id="action-field" hidden>作業を始めるときに開く<select id="item-action" name="actionTarget"></select></label>
     <label class="check-label"><input id="item-favorite" name="favorite" type="checkbox">★ お気に入りに固定</label>
     <p id="form-error" class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" data-close="editor">キャンセル</button><button class="primary" type="submit">保存する</button></div>
   </form></dialog>
-  <dialog id="reader"><div class="dialog-head"><h2 id="reader-title"></h2><button data-close="reader" aria-label="閉じる">×</button></div><pre id="reader-body"></pre><div class="dialog-actions"><button id="reader-edit">編集</button><button id="reader-copy" class="primary">本文をコピー</button></div></dialog>
+  <dialog id="reader"><div class="dialog-head"><h2 id="reader-title"></h2><button data-close="reader" aria-label="閉じる">×</button></div><pre id="reader-body"></pre><div class="dialog-actions"><button id="reader-done" data-action="toggle" hidden>完了して次へ</button><button id="reader-task" hidden>タスクにする</button><button id="reader-edit">編集</button><button id="reader-copy" class="primary">本文をコピー</button></div></dialog>
   <dialog id="backup"><div class="dialog-head"><h2>バックアップ・復元</h2><button data-close="backup" aria-label="閉じる">×</button></div><p>登録した内容は、この端末のこのブラウザに保存されます。ブラウザのデータを消す前や、端末を変えるときにバックアップしてください。</p><button id="export" class="primary wide">↓ バックアップを保存</button><hr><h3>バックアップから復元</h3><p>現在の全項目をファイルの内容に置き換えます。</p><label class="file-label">JSONファイルを選択<input id="import" type="file" accept=".json,application/json"></label><p id="backup-status" role="status"></p></dialog>
+  <dialog id="routine-editor"><div class="dialog-head"><h2>いつもの作業を編集</h2><button data-close="routine-editor" aria-label="閉じる">×</button></div><p>毎日使う順番で登録。完了チェックは日付が変わるとリセットされます。</p><div id="routine-edit-list"></div><button id="routine-add">＋ グループ</button><p id="routine-error" class="form-error" role="alert"></p><div class="dialog-actions"><button data-close="routine-editor">キャンセル</button><button id="routine-save" class="primary">保存する</button></div></dialog>
   <dialog id="confirm"><h2 id="confirm-title"></h2><p id="confirm-body"></p><div class="dialog-actions"><button id="confirm-no">キャンセル</button><button id="confirm-yes" class="primary">実行する</button></div></dialog>
   <div id="toast" class="toast" role="status" hidden><span></span><button id="undo" hidden>元に戻す</button></div>
   <noscript>Work Dockを使うには、ブラウザのJavaScriptを有効にしてください。</noscript>
