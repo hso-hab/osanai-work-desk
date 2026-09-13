@@ -20,13 +20,13 @@ function renderMetrics(){
   $('#insight-time').textContent=homeChecked+' 確認';
   $('#app-alerts').innerHTML=homeInsights.flatMap(a=>a.alerts).sort((a,b)=>Number(b.urgent)-Number(a.urgent)).map(a=>`<div class="app-alert ${a.urgent?'urgent':''}"><span>${esc(a.title)}</span>${targetControl(a.target,'対応する ↗')}</div>`).join('');
 }
-function homeTaskRow(i){return `<article class="home-task ${C.bucket(i)==='overdue'?'is-overdue':''}" data-home-task="${esc(i.id)}"><button class="task-toggle" data-action="toggle" data-id="${esc(i.id)}" aria-label="${esc(i.title)}を完了にする"><span></span></button><div class="home-task-title"><strong>${esc(i.title)}</strong><small>${esc(taskDate(i))}</small></div>${targetControl(i.actionTarget||'item:'+i.id,'着手')}<button class="subtle" data-action="edit" data-id="${esc(i.id)}" aria-label="${esc(i.title)}を編集">⋯</button></article>`;}
+function homeTaskRow(i){return `<article class="home-task ${C.bucket(i)==='overdue'?'is-overdue':''}" data-home-task="${esc(i.id)}"><button class="task-toggle" data-action="toggle" data-id="${esc(i.id)}" aria-label="${esc(i.title)}を完了にする"><span></span></button><div class="home-task-title"><strong>${esc(i.title)}</strong><small>${esc(taskDate(i))}</small></div>${targetControl(taskTarget(i),'着手')}<button class="subtle" data-action="edit" data-id="${esc(i.id)}" aria-label="${esc(i.title)}を編集">⋯</button></article>`;}
 function activeRoutine(){const groups=data.routines||[];if(!groups.some(g=>g.id===homeGroup)){const hour=new Date().getHours(),index=hour<12?0:hour<17?1:2;homeGroup=groups[Math.min(index,groups.length-1)]?.id;}return groups.find(g=>g.id===homeGroup);}
 function nextHomeTask(){return C.todayTasks(data.items)[0];}
 function renderNext(){
   const host=$('#next-action');host.hidden=!homeCompleted;if(!homeCompleted)return;
   const next=nextHomeTask(),group=activeRoutine(),step=group?.steps.find(s=>s.completedOn!==C.today());
-  host.innerHTML=`<div><small>✓ ${esc(homeCompleted)} を完了</small><strong>${next?'次：'+esc(next.title):step?'次：'+esc(step.title):'今日のタスクとこのグループは完了です'}</strong></div>${next?targetControl(next.actionTarget||'item:'+next.id,'次の作業へ →'):step?targetControl(step.target||'routine-step:'+step.id,'次の作業へ →'):targetControl('backup','バックアップを保存')}<button id="dismiss-next" class="subtle" aria-label="次の作業案内を閉じる">×</button>`;
+  host.innerHTML=`<div><small>✓ ${esc(homeCompleted)} を完了</small><strong>${next?'次：'+esc(next.title):step?'次：'+esc(step.title):'今日のタスクとこのグループは完了です'}</strong></div>${next?targetControl(taskTarget(next),'次の作業へ →'):step?targetControl(step.target||'routine-step:'+step.id,'次の作業へ →'):targetControl('backup','バックアップを保存')}${completedTaskId&&find(completedTaskId)?.done?`<button data-follow-up="${esc(completedTaskId)}">＋ 次の作業を追加</button>`:''}<button id="dismiss-next" class="subtle" aria-label="次の作業案内を閉じる">×</button>`;
 }
 function renderHome(){
   const visible=view==='all'&&!query;document.body.classList.toggle('home-view',visible);$('#home').hidden=!visible;$('#home-notes').hidden=!visible;
@@ -35,8 +35,8 @@ function renderHome(){
   if(!visible)return;
   const tasks=C.todayTasks(data.items),late=tasks.filter(i=>i.date<C.today()),today=tasks.filter(i=>i.date===C.today());
   $('#home-count').textContent=tasks.length+'件';
-  $('#today-queue').innerHTML=[['overdue','⚠ 期限切れ',late],['today','今日',today]].map(([id,title,rows])=>`<section data-home-bucket="${id}"><h3>${title}<span>${rows.length}</span></h3>${rows.length?rows.slice(0,limit['home-'+id]||20).map(homeTaskRow).join('')+(rows.length>(limit['home-'+id]||20)?`<button data-more="home-${id}" class="show-more">さらに20件表示</button>`:''):`<p class="group-empty">${id==='overdue'?'期限切れなし':'今日の未完了タスクはありません'}</p>`}</section>`).join('');
-  renderMetrics();renderRoutines();renderNext();
+  $('#today-queue').innerHTML=[['overdue','⚠ 期限切れ',late],['today','今日',today]].map(([id,title,rows])=>`<section data-home-bucket="${id}"><h3>${title}<span>${rows.length}</span></h3>${rows.length?rows.slice(0,limit['home-'+id]||6).map(homeTaskRow).join('')+(rows.length>(limit['home-'+id]||6)?`<button data-more="home-${id}" class="show-more">さらに20件表示</button>`:''):`<p class="group-empty">${id==='overdue'?'期限切れなし':'今日の未完了タスクはありません'}</p>`}</section>`).join('');
+  renderMetrics();renderRoutines();renderNext();renderDailyProgress();
   const notes=C.sorted(data.items.filter(i=>i.type==='note')).slice(0,3);
   $('#home-notes').innerHTML=`<div class="section-heading"><h2>メモから次の仕事へ</h2><div><button data-add="note" class="subtle">＋ メモ</button><button data-view="note" class="subtle">すべて →</button></div></div><div class="home-note-list">${notes.map(i=>`<div class="home-note"><button class="subtle" data-action="read" data-id="${esc(i.id)}">${esc(i.title)}</button><button data-action="note-task" data-id="${esc(i.id)}">タスク化</button></div>`).join('')||'<p class="group-empty">メモを追加すると、ここからタスクにできます。</p>'}</div>`;
 }
@@ -73,7 +73,7 @@ document.addEventListener('click',async e=>{
   if(b.hasAttribute('data-run-target')){
     const target=b.dataset.runTarget;if(target==='backup')backupOpen();else if(target==='view:task'){view='task';render();}else if(target.startsWith('item:')){const i=find(target.slice(5));if(!i)toast('登録先が削除されています');else if(i.type==='template')copyItem(i.id,b);else openReader(i.id);}else if(target.startsWith('routine-step:')){const el=document.querySelector(`[data-step="${CSS.escape(target.slice(13))}"]`);el?.scrollIntoView({block:'nearest'});el?.querySelector('button')?.focus();}else toast('使うアプリはグループの編集から設定できます');
   }
-  if(b.dataset.stepToggle){const id=b.dataset.stepToggle,s=data.routines?.flatMap(g=>g.steps).find(s=>s.id===id);if(!s)return;const completed=s.completedOn!==C.today();if(change(d=>{d.routines.flatMap(g=>g.steps).find(s=>s.id===id).completedOn=completed?C.today():'';})){homeCompleted=completed?s.title:'';renderNext();toast(completed?'作業を完了しました':'未完了に戻しました');}}
+  if(b.dataset.stepToggle){const id=b.dataset.stepToggle,s=data.routines?.flatMap(g=>g.steps).find(s=>s.id===id);if(!s)return;const completed=s.completedOn!==C.today();completedTaskId='';if(change(d=>{d.routines.flatMap(g=>g.steps).find(s=>s.id===id).completedOn=completed?C.today():'';})){homeCompleted=completed?s.title:'';renderNext();toast(completed?'作業を完了しました':'未完了に戻しました');}}
   if(b.id==='routine-manage')openRoutineEditor();
   if(b.id==='routine-save'){
     syncRoutineDraft();if(raw!==routineExpectedRaw){$('#routine-error').textContent='別タブまたは他の操作で更新されました。変更を控え、開き直してください。';return;}

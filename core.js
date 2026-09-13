@@ -41,10 +41,47 @@
         if(!r||typeof r.id!=='string'||!r.id||r.id.length>100||routineIds.has(r.id)||typeof r.name!=='string'||!r.name.trim()||r.name.length>40||!Array.isArray(r.steps)||r.steps.length>50)throw Error('作業グループの形式が正しくありません。');routineIds.add(r.id);
         for(const s of r.steps){if(!s||typeof s.id!=='string'||!s.id||s.id.length>100||routineIds.has(s.id)||typeof s.title!=='string'||!s.title.trim()||s.title.length>120||typeof s.target!=='string'||s.target.length>120||typeof s.completedOn!=='string'||s.completedOn!==''&&!validDay(s.completedOn))throw Error('定型作業の形式が正しくありません。');routineIds.add(s.id);}
       }
-    }return d;
+    }validateFlow(d);return d;
   }
   function sorted(items,field='order'){return [...items].sort((a,b)=>(a[field]??Number.MAX_SAFE_INTEGER)-(b[field]??Number.MAX_SAFE_INTEGER)||Number(b.favorite)-Number(a.favorite)||Number(a.done)-Number(b.done)||b.created-a.created||a.id.localeCompare(b.id));}
   function validDay(s){return typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s))&&new Date(s).toISOString().slice(0,10)===s;}
-  const todayTasks=items=>sorted(items.filter(i=>i.type==='task'&&!i.done&&i.date<=today())).sort((a,b)=>a.date.localeCompare(b.date));
-  const api={KEY,today,uid,url,initial,upgrade,dayOffset,bucket,validate,sorted,validDay,todayTasks};if(typeof module!=='undefined')module.exports=api;else root.Dock=api;
+  const todayTasks=items=>sorted(items.filter(i=>i.type==='task'&&!i.done&&i.date<=today())).sort((a,b)=>Number(b.date<today())-Number(a.date<today())||(b.priority||0)-(a.priority||0)||a.date.localeCompare(b.date));
+  function addDays(day,n){const d=new Date(day+'T12:00:00');d.setDate(d.getDate()+n);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+  function validateResources(r){
+    if(r===undefined)return;
+    if(!r||!Array.isArray(r.urls)||r.urls.length>20||!Array.isArray(r.itemIds)||r.itemIds.length>50||typeof r.template!=='string'||r.template.length>20000||typeof r.note!=='string'||r.note.length>20000)throw Error('作業セットの形式が正しくありません。');
+    for(const u of r.urls){if(typeof u!=='string'||u.length>4000)throw Error('URLが長すぎます。');url(u);}
+    if(r.itemIds.some(id=>typeof id!=='string'||id.length>100))throw Error('関連項目の形式が正しくありません。');
+  }
+  function validateFlow(d){
+    for(const i of d.items){
+      if(i.priority!==undefined&&![0,1,2].includes(i.priority))throw Error('重要度が正しくありません。');
+      for(const key of ['repeatId','followUpOf'])if(i[key]!==undefined&&(typeof i[key]!=='string'||i[key].length>100))throw Error('関連タスク情報が正しくありません。');
+      if(i.repeatDate!==undefined&&!validDay(i.repeatDate))throw Error('繰り返し日が正しくありません。');
+      validateResources(i.resources);
+    }
+    const ids=new Set();
+    for(const key of ['schedules','worksets']){
+      if(d[key]===undefined)continue;
+      if(!Array.isArray(d[key])||d[key].length>200)throw Error('繰り返し・セットは各200件までです。');
+      for(const r of d[key]){
+        if(!r||typeof r.id!=='string'||!r.id||r.id.length>100||ids.has(r.id))throw Error('繰り返し・セットIDが不正です。');ids.add(r.id);
+        if(key==='worksets'){if(typeof r.name!=='string'||!r.name.trim()||r.name.length>120)throw Error('セット名を入力してください。');validateResources(r.resources);if(!r.resources)throw Error('セット内容がありません。');}
+        else {if(!['daily','weekly'].includes(r.frequency)||!validDay(r.nextDate)||typeof r.active!=='boolean')throw Error('繰り返し設定が正しくありません。');validate({app:'work-dock',version:1,items:[r.task]});if(r.task.type!=='task')throw Error('繰り返し元がタスクではありません。');}
+      }
+    }
+  }
+  function materialize(d,day=today()){
+    if(!(d.schedules||[]).some(r=>r.active&&r.nextDate<=day))return d;
+    const next=structuredClone(d),existing=new Set(next.items.filter(i=>i.repeatId).map(i=>i.repeatId+':'+i.repeatDate));
+    for(const r of next.schedules){while(r.active&&r.nextDate<=day){
+      const key=r.id+':'+r.nextDate;
+      if(!existing.has(key)){
+        if(next.items.length>=10000)throw Error('タスクが上限に達しました。バックアップ後、不要な完了履歴を整理してください。');
+        next.items.push({...structuredClone(r.task),id:uid(),date:r.nextDate,done:false,completedOn:'',created:Date.now(),repeatId:r.id,repeatDate:r.nextDate});existing.add(key);
+      }
+      r.nextDate=addDays(r.nextDate,r.frequency==='daily'?1:7);
+    }}return next;
+  }
+  const api={addDays,materialize,validateResources,KEY,today,uid,url,initial,upgrade,dayOffset,bucket,validate,sorted,validDay,todayTasks};if(typeof module!=='undefined')module.exports=api;else root.Dock=api;
 })(globalThis);
