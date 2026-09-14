@@ -2,7 +2,7 @@
 let momentumMode='',momentumTask='',weekDay='',momentumLimit=30,timeDraftRaw=null;
 const statusNames={ready:'着手できる',waiting:'待ち',review:'確認待ち'};
 function duration(seconds){const minutes=Math.floor(seconds/60);return minutes>=60?`${Math.floor(minutes/60)}時間${minutes%60}分`:minutes?`${minutes}分`:`${Math.floor(seconds)}秒`;}
-function taskHint(i){return [taskDate(i),!i.done&&C.waiting(i)?statusNames[i.status]:'',i.plannedOn?'作業予定 '+i.plannedOn:'',!i.done&&C.stale(i)?'3日以上動きなし':''].filter(Boolean).join(' · ');}
+function taskHint(i){return [taskDate(i),!i.done&&data.timer?.taskId===i.id?'作業中':!i.done&&i.pausedAt?'中断中':'',!i.done&&C.waiting(i)?statusNames[i.status]:'',i.plannedOn?'作業予定 '+i.plannedOn:'',!i.done&&C.stale(i)?'3日以上動きなし':''].filter(Boolean).join(' · ');}
 function taskTools(i){return `<section class="task-tools" data-tools-for="${esc(i.id)}"><p>${esc(taskHint(i))}</p>${i.waitNote?`<p>待ちメモ：${esc(i.waitNote)}</p>`:''}<div class="task-tool-actions">${!i.done&&!C.waiting(i)?`<button data-timer-task="${esc(i.id)}" class="primary">${data.timer?.taskId===i.id?'■ 停止して記録':'▶ 時間を計る'}</button>`:''}<button data-time-task="${esc(i.id)}">時間記録・手入力</button><button data-repeat-task="${esc(i.id)}">もう一度</button>${!i.done?`<button data-carry-task="${esc(i.id)}">明日へ繰り越す</button>`:''}</div>${!i.done?`<label>状態<select data-task-status="${esc(i.id)}">${Object.entries(statusNames).map(([key,name])=>`<option value="${key}" ${(i.status||'ready')===key?'selected':''}>${name}</option>`).join('')}</select></label>`:''}<button data-tool-edit="${esc(i.id)}">期限・予定日・待ちメモを編集</button><button data-speed-undo ${undoState?'':'disabled'}>↶ 元に戻す</button></section>`;}
 function renderMomentumHome(){
  const day=C.today(),all=data.items.filter(i=>i.type==='task'&&!i.done),waiting=all.filter(C.waiting),deferred=all.filter(i=>!C.waiting(i)&&i.plannedOn>day),upcoming=C.attention(data.items).filter(i=>i.date>day&&!(i.plannedOn&&i.plannedOn<=day)),first=nextHomeTask();
@@ -49,7 +49,7 @@ function renderTimeEntries(){
  $('#time-active').innerHTML=data.timer?.taskId===momentumTask?`<p>計測中です。</p><button data-timer-task="${esc(momentumTask)}">停止して記録</button><button id="discard-timer">計測を取り消す</button>`:'';
  $('#time-entries').innerHTML=`<p>合計 ${duration(entries.reduce((s,e)=>s+e.seconds,0))} · ${entries.length}件</p>`+entries.slice(0,momentumLimit).map(e=>`<article class="history-row"><div>${esc(e.day)}<strong> ${duration(e.seconds)}</strong></div><button data-delete-time="${esc(e.id)}">削除</button></article>`).join('')+(entries.length>momentumLimit?'<button id="momentum-more">さらに30件</button>':'');
 }
-function carryTasks(ids){return change(d=>{for(const i of d.items)if(ids.includes(i.id)&&!i.done&&!C.waiting(i)){if(d.timer?.taskId===i.id)C.stopTimer(d);i.plannedOn=C.dayOffset(1);i.touchedAt=Date.now();}});}
+function carryTasks(ids){return change(d=>{for(const i of d.items)if(ids.includes(i.id)&&!i.done&&!C.waiting(i)){if(d.timer?.taskId===i.id)C.stopTimer(d);i.plannedOn=C.dayOffset(1);i.workDay=C.today();i.touchedAt=Date.now();}});}
 document.addEventListener('click',async e=>{
  const b=e.target.closest('button');if(!b)return;
  if(b.id==='week-open')showMomentum('week');
@@ -66,7 +66,7 @@ document.addEventListener('click',async e=>{
  }
  if(b.dataset.readyTask){if(change(d=>{const i=d.items.find(i=>i.id===b.dataset.readyTask);if(i){i.status='ready';i.plannedOn=C.today();i.touchedAt=Date.now();}}))toast('今日の着手候補に戻しました');}
  if(b.dataset.timerTask){const id=b.dataset.timerTask,i=find(id);if(!i||i.done||C.waiting(i))return;const stopping=data.timer?.taskId===id;
-  if(change(d=>{C.stopTimer(d);if(!stopping){d.timer={taskId:id,startedAt:Date.now()};d.items.find(i=>i.id===id).touchedAt=Date.now();}})){toast(stopping?'作業時間を記録しました':'計測を開始しました。別の計測は停止して記録します。');}
+  if(change(d=>{C.stopTimer(d);if(!stopping){C.startWork(d,id);}})){toast(stopping?'作業時間を記録しました':'計測を開始しました。別の計測は停止して記録します。');}
  }
  if(b.id==='discard-timer'||b.dataset.deleteTime){const expected=raw;if(await ask(b.id==='discard-timer'?'計測を取り消しますか？':'この時間記録を削除しますか？','必要な時間はあとから分数で手入力できます。','取り消す')){if(raw!==expected){toast('更新がありました。確認し直してください。');return;}const before=structuredClone(data);if(change(d=>{if(b.id==='discard-timer')d.timer=null;else d.timeEntries=d.timeEntries.filter(x=>x.id!==b.dataset.deleteTime);})){undoState=before;toast('取り消しました',true);}}}
 });

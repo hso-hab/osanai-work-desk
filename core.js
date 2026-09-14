@@ -93,11 +93,13 @@
   function localDay(ms){const d=new Date(ms);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
   function stale(i,day=today()){return !i.done&&localDay(i.touchedAt??i.created)<=addDays(day,-3);}
   function attention(items){return todayTasks(items).concat(sorted(items.filter(i=>i.type==='task'&&!i.done&&!waiting(i)&&!(i.plannedOn>today())&&i.date>today()&&!(i.plannedOn&&i.plannedOn<=today())&&(i.date<=dayOffset(3)||stale(i)))).sort((a,b)=>a.date.localeCompare(b.date)||(b.priority||0)-(a.priority||0)));}
-  function freshTask(source){const i=structuredClone(source);for(const k of ['plannedOn','touchedAt','waitNote','repeatId','repeatDate','followUpOf','order','homeOrder','homeOrderDay','completedOn'])delete i[k];i.status='ready';i.done=false;return i;}
+  function freshTask(source){const i=structuredClone(source);for(const k of ['plannedOn','touchedAt','waitNote','repeatId','repeatDate','followUpOf','order','homeOrder','homeOrderDay','completedOn','pausedAt','workDay'])delete i[k];i.status='ready';i.done=false;return i;}
   function validateMomentum(d){
     for(const i of d.items){
       if(i.status!==undefined&&!['ready','waiting','review'].includes(i.status))throw Error('タスクの状態が正しくありません。');
       if(i.plannedOn!==undefined&&i.plannedOn!==''&&!validDay(i.plannedOn))throw Error('作業予定日が正しくありません。');
+      if(i.workDay!==undefined&&!validDay(i.workDay))throw Error('作業日が正しくありません。');
+      if(i.pausedAt!==undefined&&(!Number.isSafeInteger(i.pausedAt)||i.pausedAt<0))throw Error('中断日時が正しくありません。');
       if(i.touchedAt!==undefined&&(!Number.isSafeInteger(i.touchedAt)||i.touchedAt<0))throw Error('最終作業日時が正しくありません。');
       if(i.waitNote!==undefined&&(typeof i.waitNote!=='string'||i.waitNote.length>300))throw Error('待ちのメモは300文字までです。');
     }
@@ -111,7 +113,7 @@
     if(!d.timer)return;const {taskId,startedAt}=d.timer,item=d.items.find(i=>i.id===taskId);let from=startedAt;
     if(now<from)throw Error('時計が開始時刻より前です。時間記録から計測を取り消して手入力してください。');
     const entries=[];while(from<now){const midnight=new Date(from);midnight.setHours(24,0,0,0);const to=Math.min(now,midnight.getTime()),seconds=Math.floor((to-from)/1000);if(seconds)entries.push({id:uid(),taskId,title:item?.title||'削除済みタスク',day:localDay(from),seconds});from=to;if(entries.length>50000)throw Error('計測期間が長すぎます。計測を取り消して手入力してください。');}
-    d.timeEntries??=[];d.timeEntries.push(...entries);d.timer=null;if(item)item.touchedAt=now;
+    d.timeEntries??=[];d.timeEntries.push(...entries);d.timer=null;if(item){item.touchedAt=now;item.pausedAt=now;item.workDay=localDay(now);}
   }
   function weekSummary(d,day=today()){
     const weekday=new Date(day+'T12:00:00').getDay(),start=addDays(day,-((weekday+6)%7)),end=addDays(start,6),tasks=d.items.filter(i=>i.type==='task');
@@ -119,5 +121,20 @@
     for(const e of d.timeEntries||[])if(e.day>=start&&e.day<=end){const row=totals.get(e.taskId)||{id:e.taskId,title:tasks.find(i=>i.id===e.taskId)?.title||e.title,seconds:0};row.seconds+=e.seconds;totals.set(e.taskId,row);}
     return {start,end,done,remaining,time:[...totals.values()].sort((a,b)=>b.seconds-a.seconds)};
   }
-  const api={waiting,localDay,stale,attention,freshTask,stopTimer,weekSummary,addDays,materialize,validateResources,KEY,today,uid,url,initial,upgrade,dayOffset,bucket,validate,sorted,validDay,todayTasks};if(typeof module!=='undefined')module.exports=api;else root.Dock=api;
+  function startWork(d,id,now=Date.now()){
+    const i=d.items.find(i=>i.id===id&&i.type==='task'&&!i.done&&!waiting(i));
+    if(!i)throw Error('開始できるタスクがありません。状態を確認してください。');
+    if(d.timer?.taskId===id)return;
+    stopTimer(d,now);d.timer={taskId:id,startedAt:now};delete i.pausedAt;i.touchedAt=now;i.workDay=localDay(now);
+    // Explicit start of a deferred/future task makes it today's work without changing its deadline.
+    if(i.plannedOn>localDay(now)||i.date>localDay(now))i.plannedOn=localDay(now);
+  }
+  function daySummary(d,day=today()){
+    const tasks=d.items.filter(i=>i.type==='task'),done=tasks.filter(i=>i.done&&i.completedOn===day);
+    const remaining=tasks.filter(i=>!i.done&&(i.date<=day||i.plannedOn&&i.plannedOn<=day||i.workDay===day));
+    const totals=new Map();for(const e of d.timeEntries||[])if(e.day===day){const row=totals.get(e.taskId)||{id:e.taskId,title:tasks.find(i=>i.id===e.taskId)?.title||e.title,seconds:0};row.seconds+=e.seconds;totals.set(e.taskId,row);}
+    const time=[...totals.values()].sort((a,b)=>b.seconds-a.seconds);
+    return {day,done,remaining,time,seconds:time.reduce((n,r)=>n+r.seconds,0)};
+  }
+  const api={startWork,daySummary,waiting,localDay,stale,attention,freshTask,stopTimer,weekSummary,addDays,materialize,validateResources,KEY,today,uid,url,initial,upgrade,dayOffset,bucket,validate,sorted,validDay,todayTasks};if(typeof module!=='undefined')module.exports=api;else root.Dock=api;
 })(globalThis);

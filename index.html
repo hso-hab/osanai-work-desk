@@ -4,8 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#176c59">
   <meta name="description" content="サイト、今日のタスク、定型文、メモをひとつのデスクに。毎日の探す・開く・コピーを短く。">
   <title>Work Dock | 業務ホーム</title>
-  <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css?v=2.3">
-  <script defer src="core.js?v=2.3"></script><script defer src="vendor/lp-core.js?v=2.3"></script><script defer src="vendor/ad-core.js?v=2.3"></script><script defer src="insights.js?v=2.3"></script><script defer src="home.js?v=2.3"></script><script defer src="flow.js?v=2.3"></script><script defer src="momentum.js?v=2.3"></script><script defer src="speed.js?v=2.3"></script><script defer src="app.js?v=2.3"></script>
+  <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css?v=2.4">
+  <script defer src="core.js?v=2.4"></script><script defer src="vendor/lp-core.js?v=2.4"></script><script defer src="vendor/ad-core.js?v=2.4"></script><script defer src="insights.js?v=2.4"></script><script defer src="home.js?v=2.4"></script><script defer src="flow.js?v=2.4"></script><script defer src="momentum.js?v=2.4"></script><script defer src="speed.js?v=2.4"></script><script defer src="journey.js?v=2.4"></script><script defer src="app.js?v=2.4"></script>
 </head>
 <body>
   <aside class="sidebar">
@@ -20,7 +20,7 @@
       <button data-view="note"><span>▧</span>メモ</button>
       <button data-view="favorite"><span>☆</span>お気に入り</button>
     </nav>
-    <div class="sidebar-foot"><div class="local-dot">このブラウザに保存</div><p>端末間の自動同期はありません。</p><button id="backup-open" class="subtle">↥ バックアップ・復元</button><small>WORK DOCK / 2.3</small></div>
+    <div class="sidebar-foot"><div class="local-dot">このブラウザに保存</div><p>端末間の自動同期はありません。</p><button id="backup-open" class="subtle">↥ バックアップ・復元</button><small>WORK DOCK / 2.4</small></div>
   </aside>
   <main>
     <header class="topbar"><span class="workspace-label">DAILY WORK HOME</span><button id="add-main" class="primary">＋ タスクを追加</button></header>
@@ -30,6 +30,8 @@
     <div id="active-timer" class="active-timer" hidden></div>
     <div id="next-action" class="next-action" role="status" hidden></div>
     <section id="home" aria-label="今日の業務ホーム">
+      <section id="work-focus" class="work-focus" aria-label="いま進める仕事"></section>
+      <details id="day-review" class="day-review"><summary id="day-review-summary"></summary><div id="day-review-body"></div></details>
       <div id="daily-progress" class="daily-progress"></div><div class="home-tools-strip"><div class="speed-toolbar"><button data-speed-undo disabled>↶ 元に戻す</button><button id="home-settings">ホームの表示</button><button id="shortcuts-open" aria-label="キーボード操作一覧">⌨ ショートカット</button></div><div class="flow-toolbar"><button id="week-open">週の振り返り</button><button id="history-open">完了履歴</button><button id="schedule-open">繰り返し</button><button id="sets-open">作業セット</button></div></div>
       <div class="home-grid">
         <section class="home-today home-card"><div class="section-heading"><h2>今日やること <span id="home-count" class="count"></span></h2><button data-view="task" class="subtle">全タスク →</button></div>

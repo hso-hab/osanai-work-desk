@@ -22,11 +22,11 @@ function renderMetrics(){
 }
 function homeTaskRow(i){return `<article class="home-task ${C.bucket(i)==='overdue'?'is-overdue':''}" data-home-task="${esc(i.id)}">${todayHandle(i)}<button class="task-toggle" data-action="toggle" data-id="${esc(i.id)}" aria-label="${esc(i.title)}を完了にする"><span></span></button><div class="home-task-title"><strong>${esc(i.title)}</strong><small>${esc(taskHint(i))}</small></div>${speedRowActions(i)}</article>`;}
 function activeRoutine(){const groups=data.routines||[];if(!groups.some(g=>g.id===homeGroup)){const hour=new Date().getHours(),index=hour<12?0:hour<17?1:2;homeGroup=groups[Math.min(index,groups.length-1)]?.id;}return groups.find(g=>g.id===homeGroup);}
-function nextHomeTask(){return C.todayTasks(data.items)[0];}
+function nextHomeTask(){const rows=C.todayTasks(data.items);return rows.find(i=>i.id===data.timer?.taskId)||(manualToday()?rows[0]:rows.find(i=>!i.pausedAt)||rows[0]);}
 function renderNext(){
   const host=$('#next-action');host.hidden=!homeCompleted;if(!homeCompleted)return;
   const next=nextHomeTask(),group=activeRoutine(),step=group?.steps.find(s=>s.completedOn!==C.today());
-  host.innerHTML=`<div><small>✓ ${esc(homeCompleted)} を完了</small><strong>${next?'次：'+esc(next.title):step?'次：'+esc(step.title):'今日のタスクとこのグループは完了です'}</strong></div>${next?targetControl(taskTarget(next),'次の作業へ →'):step?targetControl(step.target||'routine-step:'+step.id,'次の作業へ →'):targetControl('backup','バックアップを保存')}${completedTaskId&&find(completedTaskId)?.done?`<button data-follow-up="${esc(completedTaskId)}">＋ 次の作業を追加</button>`:''}<button id="dismiss-next" class="subtle" aria-label="次の作業案内を閉じる">×</button>`;
+  host.innerHTML=`<div><small>✓ ${esc(homeCompleted)} を完了</small><strong>${next?'次：'+esc(next.title):step?'次：'+esc(step.title):'今日のタスクとこのグループは完了です'}</strong></div>${next?workControl(next,'次の作業へ →'):step?targetControl(step.target||'routine-step:'+step.id,'次の作業へ →'):targetControl('backup','バックアップを保存')}${completedTaskId&&find(completedTaskId)?.done?`<button data-follow-up="${esc(completedTaskId)}">＋ 次の作業を追加</button>`:''}<button id="dismiss-next" class="subtle" aria-label="次の作業案内を閉じる">×</button>`;
 }
 function renderHome(){
   const visible=view==='all'&&!query;document.body.classList.toggle('home-view',visible);$('#home').hidden=!visible;$('#home-notes').hidden=!visible;

@@ -1,12 +1,12 @@
 'use strict';
 // Daily interactions. Business data still goes through the shared atomic save path.
 let batchMode=false,batchIds=new Set(),batchRaw=null,batchContext='',homeDrag=null,touchDrag=null;
-const homeSections={tools:['振り返り・繰り返し・作業セット','.flow-toolbar'],progress:['進捗','#daily-progress'],metrics:['仕事の状況','.home-metrics'],routines:['いつもの作業','.home-routines'],recent:['最近使ったサイト','#recent-section'],copies:['よく使う定型文','#quick-copy-section'],notes:['メモ','#home-notes'],alerts:['関連アプリの要対応','#app-alerts']};
+const homeSections={review:['今日のまとめ','#day-review'],tools:['振り返り・繰り返し・作業セット','.flow-toolbar'],progress:['進捗','#daily-progress'],metrics:['仕事の状況','.home-metrics'],routines:['いつもの作業','.home-routines'],recent:['最近使ったサイト','#recent-section'],copies:['よく使う定型文','#quick-copy-section'],notes:['メモ','#home-notes'],alerts:['関連アプリの要対応','#app-alerts']};
 function syncUndo(){document.querySelectorAll('[data-speed-undo]').forEach(b=>b.disabled=!undoState);$('#undo').hidden=!undoState;}
 function undoLast(){if(!undoState){toast('取り消せる操作はありません。');return;}if(save(undoState)){homeCompleted='';completedTaskId='';batchIds.clear();render();toast('元に戻しました');}}
 function manualToday(){return data.items.some(i=>i.type==='task'&&i.homeOrderDay===C.today());}
 function todayHandle(i){return `<button class="today-handle" draggable="true" data-today-drag="${esc(i.id)}" aria-label="${esc(i.title)}の順番を変更" title="ドラッグで移動・Alt＋↑↓でも移動">⠿</button>`;}
-function speedRowActions(i){return `<div class="home-direct">${targetControl(taskTarget(i),'着手')}<button data-timer-task="${esc(i.id)}" aria-label="${esc(i.title)}の${data.timer?.taskId===i.id?'時間計測を停止':'時間計測を開始'}">${data.timer?.taskId===i.id?'■ 停止':'▶ 計測'}</button><button data-carry-task="${esc(i.id)}" aria-label="${esc(i.title)}を明日へ繰り越す">明日へ</button><button data-task-tools="${esc(i.id)}" aria-label="${esc(i.title)}の時間・状態・繰越">操作</button><button class="subtle" data-action="edit" data-id="${esc(i.id)}" aria-label="${esc(i.title)}を編集">⋯</button></div>`;}
+function speedRowActions(i){return `<div class="home-direct">${workControl(i)}<button data-timer-task="${esc(i.id)}" aria-label="${esc(i.title)}の${data.timer?.taskId===i.id?'時間計測を停止':'時間計測を開始'}">${data.timer?.taskId===i.id?'■ 停止':'▶ 計測'}</button><button data-carry-task="${esc(i.id)}" aria-label="${esc(i.title)}を明日へ繰り越す">明日へ</button><button data-task-tools="${esc(i.id)}" aria-label="${esc(i.title)}の時間・状態・繰越">操作</button><button class="subtle" data-action="edit" data-id="${esc(i.id)}" aria-label="${esc(i.title)}を編集">⋯</button></div>`;}
 function quickFocus(){view='all';query='';$('#search').value='';render();$('#home-quick-title').focus();$('#home-quick-title').scrollIntoView({block:'center',behavior:'instant'});}
 function renderSpeed(){
   syncUndo();
@@ -37,7 +37,7 @@ function applyBatch(action){
   if(change(d=>{for(const i of d.items){if(!ids.has(i.id)||i.type!=='task')continue;if(i.done)continue;
     if(d.timer?.taskId===i.id&&(action!=='ready'))C.stopTimer(d);
     if(action==='done'){i.done=true;i.completedOn=C.today();i.status='ready';}
-    else if(action==='carry'){i.plannedOn=C.dayOffset(1);}
+    else if(action==='carry'){i.plannedOn=C.dayOffset(1);i.workDay=C.today();}
     else i.status=action;
     i.touchedAt=Date.now();count++;
   }})){batchIds.clear();homeCompleted='';completedTaskId='';renderNext();updateBatch();toast(`${count}件を${action==='done'?'完了しました':action==='carry'?'明日の予定にしました（期限・待ち状態は維持）':'状態変更しました'}。`,true);}
