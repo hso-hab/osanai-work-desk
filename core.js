@@ -24,12 +24,14 @@
   function validate(d){
     if(!d||d.app!=='work-dock'||d.version!==1||!Array.isArray(d.items)||d.items.length>10000)throw Error('Work Dockのバックアップではないか、件数が上限を超えています。');
     if(d.defaultsVersion!==undefined&&d.defaultsVersion!==1)throw Error('初期リンク情報の形式が正しくありません。');
+    if(d.homePrefs!==undefined&&(!d.homePrefs||Array.isArray(d.homePrefs)||typeof d.homePrefs!=='object'||Object.values(d.homePrefs).some(v=>typeof v!=='boolean')))throw Error('ホームの表示設定が正しくありません。');
     const ids=new Set();
     for(const i of d.items){
       if(!i||typeof i.id!=='string'||!i.id||i.id.length>100||ids.has(i.id))throw Error('項目IDが不正です。');ids.add(i.id);
       if(!['link','task','template','note'].includes(i.type)||typeof i.title!=='string'||!i.title.trim()||i.title.length>120||typeof i.body!=='string'||i.body.length>20000||typeof i.url!=='string'||i.url.length>4000||typeof i.date!=='string'||typeof i.done!=='boolean'||typeof i.favorite!=='boolean'||!Number.isFinite(i.created))throw Error('項目の形式が正しくありません。');
-      for(const field of ['order','favoriteOrder','lastUsed','useCount'])if(i[field]!==undefined&&(!Number.isSafeInteger(i[field])||i[field]<0))throw Error('並び順・利用履歴の形式が正しくありません。');
+      for(const field of ['order','favoriteOrder','lastUsed','useCount','homeOrder'])if(i[field]!==undefined&&(!Number.isSafeInteger(i[field])||i[field]<0))throw Error('並び順・利用履歴の形式が正しくありません。');
       for(const [field,max] of [['category',40],['actionTarget',120],['sourceId',100]])if(i[field]!==undefined&&(typeof i[field]!=='string'||i[field].length>max))throw Error('カテゴリ・関連作業の形式が正しくありません。');
+      if(i.homeOrderDay!==undefined&&!validDay(i.homeOrderDay))throw Error('作業順の日付が正しくありません。');
       if(i.completedOn!==undefined&&i.completedOn!==''&&!validDay(i.completedOn))throw Error('完了日の形式が正しくありません。');
       if(i.type==='link')url(i.url);
       if(i.type==='task'&&(!/^\d{4}-\d{2}-\d{2}$/.test(i.date)||!Number.isFinite(Date.parse(i.date))||new Date(i.date).toISOString().slice(0,10)!==i.date))throw Error('タスクの日付が正しくありません。');
@@ -46,7 +48,11 @@
   }
   function sorted(items,field='order'){return [...items].sort((a,b)=>(a[field]??Number.MAX_SAFE_INTEGER)-(b[field]??Number.MAX_SAFE_INTEGER)||Number(b.favorite)-Number(a.favorite)||Number(a.done)-Number(b.done)||b.created-a.created||a.id.localeCompare(b.id));}
   function validDay(s){return typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s))&&new Date(s).toISOString().slice(0,10)===s;}
-  const todayTasks=items=>sorted(items.filter(i=>i.type==='task'&&!i.done&&!waiting(i)&&!(i.plannedOn>today())&&(i.date<=today()||i.plannedOn&&i.plannedOn<=today()))).sort((a,b)=>Number(b.date<today())-Number(a.date<today())||(b.priority||0)-(a.priority||0)||Number(stale(b))-Number(stale(a))||a.date.localeCompare(b.date));
+  function todayTasks(items){
+    const day=today(),rows=sorted(items.filter(i=>i.type==='task'&&!i.done&&!waiting(i)&&!(i.plannedOn>day)&&(i.date<=day||i.plannedOn&&i.plannedOn<=day))).sort((a,b)=>Number(b.date<day)-Number(a.date<day)||(b.priority||0)-(a.priority||0)||Number(stale(b))-Number(stale(a))||a.date.localeCompare(b.date));
+    // Manual order is only for this day; date/priority warnings remain unchanged.
+    return rows.sort((a,b)=>(a.homeOrderDay===day?(a.homeOrder??Number.MAX_SAFE_INTEGER):Number.MAX_SAFE_INTEGER)-(b.homeOrderDay===day?(b.homeOrder??Number.MAX_SAFE_INTEGER):Number.MAX_SAFE_INTEGER));
+  }
   function addDays(day,n){const d=new Date(day+'T12:00:00');d.setDate(d.getDate()+n);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
   function validateResources(r){
     if(r===undefined)return;
@@ -87,7 +93,7 @@
   function localDay(ms){const d=new Date(ms);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
   function stale(i,day=today()){return !i.done&&localDay(i.touchedAt??i.created)<=addDays(day,-3);}
   function attention(items){return todayTasks(items).concat(sorted(items.filter(i=>i.type==='task'&&!i.done&&!waiting(i)&&!(i.plannedOn>today())&&i.date>today()&&!(i.plannedOn&&i.plannedOn<=today())&&(i.date<=dayOffset(3)||stale(i)))).sort((a,b)=>a.date.localeCompare(b.date)||(b.priority||0)-(a.priority||0)));}
-  function freshTask(source){const i=structuredClone(source);for(const k of ['plannedOn','touchedAt','waitNote','repeatId','repeatDate','followUpOf','order','completedOn'])delete i[k];i.status='ready';i.done=false;return i;}
+  function freshTask(source){const i=structuredClone(source);for(const k of ['plannedOn','touchedAt','waitNote','repeatId','repeatDate','followUpOf','order','homeOrder','homeOrderDay','completedOn'])delete i[k];i.status='ready';i.done=false;return i;}
   function validateMomentum(d){
     for(const i of d.items){
       if(i.status!==undefined&&!['ready','waiting','review'].includes(i.status))throw Error('タスクの状態が正しくありません。');

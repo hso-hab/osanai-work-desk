@@ -12,14 +12,14 @@ function load(){try{
   }catch(e){$('#notice').textContent='既存データは維持しています。自動更新できませんでした。'+e.message;$('#notice').hidden=false;}
 
 }catch(e){blocked=true;data={app:'work-dock',version:1,items:[]};$('#notice').textContent='保存データを読み込めません。データ保護のため保存を停止しています。「バックアップ・復元」から元データの書き出し、または正常なバックアップの復元ができます。';$('#notice').hidden=false;}}
-function toast(message,undo=false){clearTimeout(toastTimer);$('#toast span').textContent=message;$('#undo').hidden=!undo;$('#toast').hidden=false;toastTimer=setTimeout(()=>{$('#toast').hidden=true;},undo?12000:4500);}
+function toast(message,undo=false){clearTimeout(toastTimer);$('#toast span').textContent=message;$('#undo').hidden=!(undo||undoState);syncUndo();$('#toast').hidden=false;toastTimer=setTimeout(()=>{$('#toast').hidden=true;},(undo||undoState)?12000:4500);}
 function save(next,{recover=false,redraw=true}={}){
   if(blocked&&!recover){toast('保存を停止しています。バックアップ画面を確認してください。');return false;}
   try{const latest=localStorage.getItem(KEY);if(latest!==raw){load();undoState=null;render();toast('別タブの変更を読み込みました。内容を確認して、もう一度操作してください。');return false;}
-    next=C.materialize(C.validate(next));C.validate(next);const text=JSON.stringify(next);localStorage.setItem(KEY,text);raw=text;data=next;blocked=false;$('#notice').hidden=true;undoState=null;if(redraw)render();return true;
+    next=C.materialize(C.validate(next));C.validate(next);const text=JSON.stringify(next);localStorage.setItem(KEY,text);raw=text;data=next;blocked=false;$('#notice').hidden=true;undoState=null;if(redraw)render();else syncUndo();return true;
   }catch(e){toast('保存できません。空き容量やブラウザの保存設定を確認してください。');return false;}
 }
-function change(fn){try{const next=structuredClone(data);fn(next);C.validate(next);return save(next);}catch(e){toast(e.message);return false;}}
+function change(fn){try{const before=structuredClone(data),next=structuredClone(data);fn(next);C.validate(next);if(!save(next))return false;undoState=before;syncUndo();return true;}catch(e){toast(e.message);return false;}}
 function find(id){return data.items.find(i=>i.id===id);}
 function star(i){return `<button class="star" data-action="favorite" data-id="${esc(i.id)}" aria-label="${esc(i.title)}を${i.favorite?'お気に入りから外す':'お気に入りに固定'}" aria-pressed="${i.favorite}">${i.favorite?'★':'☆'}</button>`;}
 function matches(i){return !query||[i.title,i.body,i.url,i.category||''].some(s=>s.toLocaleLowerCase().includes(query));}
@@ -47,10 +47,12 @@ function renderAccess(){
   const templates=data.items.filter(i=>i.type==='template'&&matches(i)).sort((a,b)=>Number(b.favorite)-Number(a.favorite)||(b.useCount||0)-(a.useCount||0)||(b.lastUsed||0)-(a.lastUsed||0)||b.created-a.created).slice(0,6);
   $('#quick-copy-section').hidden=!['all','library','template'].includes(view)||(!templates.length&&view!=='all');
   $('#quick-copies').innerHTML=templates.map(i=>`<button class="quick-copy" data-action="copy" data-id="${esc(i.id)}" aria-label="${esc(i.title)}をコピー"><span>${i.favorite?'★ ':''}${esc(i.title)}</span><span class="copy-label">コピー</span></button>`).join('')||'<button data-add="template" class="subtle">＋ 定型文を登録</button>';
+  if(view==='all'&&!query){if(data.homePrefs?.recent===false)$('#recent-section').hidden=true;if(data.homePrefs?.copies===false)$('#quick-copy-section').hidden=true;}
 }
 function recordUse(id){const item=find(id);if(!item||blocked)return false;const next=structuredClone(data),i=next.items.find(x=>x.id===id);i.lastUsed=Math.max(Date.now(),Math.min(Number.MAX_SAFE_INTEGER-1,Math.max(0,...next.items.map(x=>x.lastUsed||0)))+1);i.useCount=Math.min(Number.MAX_SAFE_INTEGER,(i.useCount||0)+1);return save(next,{redraw:false});}
 function moveItem(id,targetId,scope,expectedRaw=raw){if(expectedRaw!==raw){toast('別タブで更新されました。並び順を確認してやり直してください。');return;}const rows=orderRows(scope),from=rows.findIndex(i=>i.id===id),to=rows.findIndex(i=>i.id===targetId);if(from<0||to<0||from===to)return;const [moved]=rows.splice(from,1);rows.splice(to,0,moved);const field=scope==='favorite'?'favoriteOrder':'order',ranks=new Map(rows.map((i,index)=>[i.id,index]));if(change(d=>{for(const i of d.items)if(ranks.has(i.id))i[field]=ranks.get(i.id);})){toast('並び順を保存しました');document.querySelector(`[data-order-id="${CSS.escape(id)}"][data-order-scope="${scope}"] button[data-action^="move"]:not(:disabled)`)?.focus();}}
 function render(){
+  const quickDraft=$('#quick-title')?.value,quickFocused=document.activeElement?.id==='quick-title';
   renderAccess();
   renderHome();
   renderTimer();refreshMomentumDialog();
@@ -63,6 +65,8 @@ function render(){
   const fav=C.sorted(data.items.filter(i=>i.favorite&&matches(i)&&!(i.type==='task'&&i.done)),'favoriteOrder');$('#favorites-section').hidden=!['library','favorite'].includes(view)&&!(view==='all'&&query);const max=limit.favorite||12;
   $('#favorites').innerHTML=fav.length?fav.slice(0,max).map(favoriteCard).join('')+(fav.length>max?`<button data-more="favorite" class="show-more">さらに12件表示</button>`:''):'<div class="favorite-empty">各項目の ☆ を押すと、ここに固定できます。</div>';
   const types=view==='library'||view==='all'&&query?Object.keys(labels):['all','favorite'].includes(view)?[]:[view];$('#board').classList.toggle('single',!['all','library'].includes(view));$('#board').innerHTML=types.map(panel).join('');
+  if(quickDraft!==undefined&&$('#quick-title')){$('#quick-title').value=quickDraft;if(quickFocused)$('#quick-title').focus();}
+  renderSpeed();
   $('#results-label').textContent=query?`「${$('#search').value}」の検索結果` :'';
 }
 function ask(title,body,yes='実行する'){return new Promise(resolve=>{pendingConfirm=resolve;$('#confirm-title').textContent=title;$('#confirm-body').textContent=body;$('#confirm-yes').textContent=yes;$('#confirm').showModal();});}
@@ -91,10 +95,10 @@ document.addEventListener('click',async e=>{const b=e.target.closest('button');i
     case 'delete':{const confirmedRaw=raw;if(await ask('この項目を削除しますか？',item.title,'削除する')){if(raw!==confirmedRaw){toast('別タブで更新されました。内容を確認して削除し直してください。');return;}const before=structuredClone(data);if(change(d=>{if(d.timer?.taskId===id)C.stopTimer(d);d.items=d.items.filter(i=>i.id!==id);})){undoState=before;toast('削除しました',true);}}break;}
   }
 });
-document.addEventListener('submit',e=>{if(e.target.id!=='quick-task')return;e.preventDefault();const title=$('#quick-title').value.trim();if(!title){$('#quick-title').setCustomValidity('やることを入力してください。');$('#quick-title').reportValidity();return;}taskScope='all';if(change(d=>d.items.push({id:C.uid(),type:'task',title,body:'',url:'',date:C.today(),done:false,favorite:false,created:Date.now()}))){toast('今日のタスクを追加しました');$('#quick-title')?.focus();}});
+document.addEventListener('submit',e=>{if(e.target.id!=='quick-task')return;e.preventDefault();const title=$('#quick-title').value.trim();if(!title){$('#quick-title').setCustomValidity('やることを入力してください。');$('#quick-title').reportValidity();return;}taskScope='all';if(change(d=>d.items.push({id:C.uid(),type:'task',title,body:'',url:'',date:C.today(),done:false,favorite:false,created:Date.now()}))){toast('今日のタスクを追加しました');if($('#quick-title')){$('#quick-title').value='';$('#quick-title').focus();}}});
 document.addEventListener('input',e=>{if(e.target.id==='quick-title')e.target.setCustomValidity('');});
-$('#add-main').onclick=()=>openEditor(labels[view]?view:'task');$('#search').oninput=()=>{query=$('#search').value.trim().toLocaleLowerCase();limit={};reorderScope=null;render();};
-$('#undo').onclick=()=>{if(!undoState){toast('次の保存が行われたため、取り消せません。');return;}if(save(undoState))toast('元に戻しました');};
+$('#add-main').onclick=()=>view==='all'&&!query?quickFocus():openEditor(labels[view]?view:'task');$('#search').oninput=()=>{query=$('#search').value.trim().toLocaleLowerCase();limit={};reorderScope=null;render();};
+$('#undo').onclick=undoLast;
 function backupOpen(){$('#backup-status').textContent=blocked?'元データを保存してから復元してください。':'';$('#backup').showModal();}
 $('#backup-open').onclick=backupOpen;
 const mobileBackup=document.createElement('button');mobileBackup.id='backup-open-mobile';mobileBackup.className='subtle';mobileBackup.textContent='↥ バックアップ・復元';mobileBackup.onclick=backupOpen;document.querySelector('footer').append(mobileBackup);
@@ -103,8 +107,8 @@ $('#export').onclick=()=>{try{const latest=localStorage.getItem(KEY);download(la
 $('#import').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>20*1024*1024)throw Error('ファイルが大きすぎます（上限20MB）。');const restored=C.upgrade(C.validate(JSON.parse(await file.text()))),confirmedRaw=raw;if(!await ask('バックアップから復元しますか？',`現在の${data.items.length}件を、ファイルの${restored.items.length}件で置き換えます。必要なら先に現在のバックアップを保存してください。`,'置き換えて復元'))return;if(raw!==confirmedRaw){$('#backup-status').textContent='別タブで更新されました。最新の内容を確認して、ファイルを選び直してください。';return;}if(save(restored,{recover:true})){$('#backup-status').textContent='復元しました。';toast('復元しました');}}catch(err){$('#backup-status').textContent='復元できません：'+err.message;}};
 window.addEventListener('storage',e=>{if(e.key!==KEY&&e.key!==null)return;const editorOpen=$('#editor').open;load();undoState=null;render();if(editorOpen){$('#form-error').textContent='別タブで更新されました。入力は残しています。閉じて最新内容を確認してください。';formStart='external-change';}toast('別タブの変更を読み込みました。');});
 window.addEventListener('beforeunload',e=>{if($('#editor').open&&formSnapshot()!==formStart){e.preventDefault();e.returnValue='';}});
-document.addEventListener('keydown',e=>{if(e.key==='/'&&!document.querySelector('dialog[open]')&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){e.preventDefault();$('#search').focus();}});
-function refreshDay(){if(currentDay!==C.today()){currentDay=C.today();homeGroup=null;homeCompleted='';refreshInsights();autoTasks();render();}}setInterval(refreshDay,30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshDay();});
+document.addEventListener('keydown',e=>{if(!e.isComposing&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.target.closest('[contenteditable]:not([contenteditable=false])')&&e.key==='/'&&!document.querySelector('dialog[open]')&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){e.preventDefault();$('#search').focus();}});
+function refreshDay(){if(currentDay!==C.today()){undoState=null;batchIds.clear();currentDay=C.today();homeGroup=null;homeCompleted='';refreshInsights();autoTasks();render();}}setInterval(refreshDay,30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshDay();});
 // Keep normal anchor navigation (including modifier/middle clicks); only log launches from this app.
 function trackLink(e){const a=e.target.closest('a[data-open-id],a[data-open-app]');if(!a||(e.type==='auxclick'&&e.button!==1))return;const id=a.dataset.openId||data.items.find(i=>i.type==='link'&&C.url(i.url).split('?')[0]===DockInsights.apps[a.dataset.openApp]?.url.split('?')[0])?.id;if(id)recordUse(id);setTimeout(()=>{if(!document.querySelector('dialog[open]'))renderAccess();},0);}
 document.addEventListener('click',trackLink);document.addEventListener('auxclick',trackLink);

@@ -20,7 +20,7 @@ function renderMetrics(){
   $('#insight-time').textContent=homeChecked+' 確認';
   $('#app-alerts').innerHTML=homeInsights.flatMap(a=>a.alerts).sort((a,b)=>Number(b.urgent)-Number(a.urgent)).map(a=>`<div class="app-alert ${a.urgent?'urgent':''}"><span>${esc(a.title)}</span>${targetControl(a.target,'対応する ↗')}</div>`).join('');
 }
-function homeTaskRow(i){return `<article class="home-task ${C.bucket(i)==='overdue'?'is-overdue':''}" data-home-task="${esc(i.id)}"><button class="task-toggle" data-action="toggle" data-id="${esc(i.id)}" aria-label="${esc(i.title)}を完了にする"><span></span></button><div class="home-task-title"><strong>${esc(i.title)}</strong><small>${esc(taskHint(i))}</small></div>${targetControl(taskTarget(i),'着手')}<button data-task-tools="${esc(i.id)}" aria-label="${esc(i.title)}の時間・状態・繰越">操作</button><button class="subtle" data-action="edit" data-id="${esc(i.id)}" aria-label="${esc(i.title)}を編集">⋯</button></article>`;}
+function homeTaskRow(i){return `<article class="home-task ${C.bucket(i)==='overdue'?'is-overdue':''}" data-home-task="${esc(i.id)}">${todayHandle(i)}<button class="task-toggle" data-action="toggle" data-id="${esc(i.id)}" aria-label="${esc(i.title)}を完了にする"><span></span></button><div class="home-task-title"><strong>${esc(i.title)}</strong><small>${esc(taskHint(i))}</small></div>${speedRowActions(i)}</article>`;}
 function activeRoutine(){const groups=data.routines||[];if(!groups.some(g=>g.id===homeGroup)){const hour=new Date().getHours(),index=hour<12?0:hour<17?1:2;homeGroup=groups[Math.min(index,groups.length-1)]?.id;}return groups.find(g=>g.id===homeGroup);}
 function nextHomeTask(){return C.todayTasks(data.items)[0];}
 function renderNext(){
@@ -35,7 +35,7 @@ function renderHome(){
   if(!visible)return;
   const tasks=C.todayTasks(data.items),late=tasks.filter(i=>i.date<C.today()),today=tasks.filter(i=>i.date>=C.today());
   $('#home-count').textContent=tasks.length+'件';
-  $('#today-queue').innerHTML=[['overdue','⚠ 期限切れ',late],['today','今日',today]].map(([id,title,rows])=>`<section data-home-bucket="${id}"><h3>${title}<span>${rows.length}</span></h3>${rows.length?rows.slice(0,limit['home-'+id]||6).map(homeTaskRow).join('')+(rows.length>(limit['home-'+id]||6)?`<button data-more="home-${id}" class="show-more">さらに20件表示</button>`:''):`<p class="group-empty">${id==='overdue'?'期限切れなし':'今日の未完了タスクはありません'}</p>`}</section>`).join('');
+  $('#today-queue').innerHTML=(manualToday()?[['manual','今日の作業順',tasks]]:[['overdue','⚠ 期限切れ',late],['today','今日',today]]).map(([id,title,rows])=>`<section data-home-bucket="${id}"><h3>${title}<span>${rows.length}</span></h3>${rows.length?rows.slice(0,limit['home-'+id]||6).map(homeTaskRow).join('')+(rows.length>(limit['home-'+id]||6)?`<button data-more="home-${id}" class="show-more">さらに20件表示</button>`:''):`<p class="group-empty">${id==='overdue'?'期限切れなし':'今日の未完了タスクはありません'}</p>`}</section>`).join('');
   renderMetrics();renderRoutines();renderNext();renderDailyProgress();renderMomentumHome();
   const notes=C.sorted(data.items.filter(i=>i.type==='note')).slice(0,3);
   $('#home-notes').innerHTML=`<div class="section-heading"><h2>メモから次の仕事へ</h2><div><button data-add="note" class="subtle">＋ メモ</button><button data-view="note" class="subtle">すべて →</button></div></div><div class="home-note-list">${notes.map(i=>`<div class="home-note"><button class="subtle" data-action="read" data-id="${esc(i.id)}">${esc(i.title)}</button><button data-action="note-task" data-id="${esc(i.id)}">タスク化</button></div>`).join('')||'<p class="group-empty">メモを追加すると、ここからタスクにできます。</p>'}</div>`;
