@@ -4,8 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#176c59">
   <meta name="description" content="サイト、今日のタスク、定型文、メモをひとつのデスクに。毎日の探す・開く・コピーを短く。">
   <title>Work Dock | 業務ホーム</title>
-  <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css?v=2.1">
-  <script defer src="core.js?v=2.1"></script><script defer src="vendor/lp-core.js?v=2.1"></script><script defer src="vendor/ad-core.js?v=2.1"></script><script defer src="insights.js?v=2.1"></script><script defer src="home.js?v=2.1"></script><script defer src="flow.js?v=2.1"></script><script defer src="app.js?v=2.1"></script>
+  <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css?v=2.2">
+  <script defer src="core.js?v=2.2"></script><script defer src="vendor/lp-core.js?v=2.2"></script><script defer src="vendor/ad-core.js?v=2.2"></script><script defer src="insights.js?v=2.2"></script><script defer src="home.js?v=2.2"></script><script defer src="flow.js?v=2.2"></script><script defer src="momentum.js?v=2.2"></script><script defer src="app.js?v=2.2"></script>
 </head>
 <body>
   <aside class="sidebar">
@@ -20,20 +20,21 @@
       <button data-view="note"><span>▧</span>メモ</button>
       <button data-view="favorite"><span>☆</span>お気に入り</button>
     </nav>
-    <div class="sidebar-foot"><div class="local-dot">このブラウザに保存</div><p>端末間の自動同期はありません。</p><button id="backup-open" class="subtle">↥ バックアップ・復元</button><small>WORK DOCK / 2.1</small></div>
+    <div class="sidebar-foot"><div class="local-dot">このブラウザに保存</div><p>端末間の自動同期はありません。</p><button id="backup-open" class="subtle">↥ バックアップ・復元</button><small>WORK DOCK / 2.2</small></div>
   </aside>
   <main>
     <header class="topbar"><span class="workspace-label">DAILY WORK HOME</span><button id="add-main" class="primary">＋ タスクを追加</button></header>
     <section class="welcome"><div><p id="date-label" class="eyebrow"></p><h1 id="page-title">おかえりなさい。</h1><p id="page-subtitle">いつもの仕事は、ここから。</p></div><div class="daily-stat"><span class="stat-icon">✓</span><div><strong id="remaining">0</strong><span>今日までの未完了</span></div></div></section>
     <div class="searchbox"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="サイト・やること・定型文・メモを検索" aria-label="すべての項目を検索"><kbd>/</kbd></div>
     <p id="notice" role="alert" hidden></p>
+    <div id="active-timer" class="active-timer" hidden></div>
     <div id="next-action" class="next-action" role="status" hidden></div>
     <section id="home" aria-label="今日の業務ホーム">
-      <div id="daily-progress" class="daily-progress"></div><div class="flow-toolbar"><button id="history-open">完了履歴</button><button id="schedule-open">繰り返し</button><button id="sets-open">作業セット</button></div>
+      <div id="daily-progress" class="daily-progress"></div><div class="flow-toolbar"><button id="week-open">週の振り返り</button><button id="history-open">完了履歴</button><button id="schedule-open">繰り返し</button><button id="sets-open">作業セット</button></div>
       <div class="home-grid">
         <section class="home-today home-card"><div class="section-heading"><h2>今日やること <span id="home-count" class="count"></span></h2><button data-view="task" class="subtle">全タスク →</button></div>
           <form id="home-quick-task" class="quick-task"><input id="home-quick-title" maxlength="120" required aria-label="今日のタスクを入力" placeholder="今日やることを追加"><button type="submit" class="primary" aria-label="今日に追加">＋</button></form>
-          <div id="today-queue" class="today-queue"></div><div id="app-alerts" class="app-alerts"></div>
+          <div id="today-queue" class="today-queue"></div><div id="momentum-queue"></div><div id="app-alerts" class="app-alerts"></div>
         </section>
         <section class="home-metrics home-card"><div class="section-heading"><h2>仕事の状況</h2><button id="refresh-insights" class="subtle">更新</button></div><div id="app-metrics"></div><details class="connection-note"><summary>このブラウザの保存データ · <span id="insight-time"></span></summary><p>同じブラウザ・同じ公開ドメインの保存分を読み取り専用で集計します。別端末・別ドメイン・CRMサーバー版のデータは対象外。各アプリの数字は合算しません。</p></details></section>
         <section class="home-routines home-card"><div class="section-heading"><h2>いつもの作業 <span id="routine-progress" class="count"></span></h2><button id="routine-manage" class="subtle">編集</button></div><div id="routine-tabs" class="routine-tabs" role="group" aria-label="作業グループ"></div><div id="routine-steps"></div></section>
@@ -55,7 +56,7 @@
     <label id="url-field">URL<input id="item-url" name="url" type="text" inputmode="url" maxlength="4000" placeholder="https://..."></label>
     <label id="date-field" hidden>期限<input id="item-date" name="date" type="date"></label>
     <div id="flow-fields" hidden>
-      <div class="flow-fields-row"><label>重要度<select id="item-priority" name="priority"><option value="0">通常</option><option value="1">重要</option><option value="2">最重要</option></select></label><label>繰り返し<select id="item-repeat" name="repeat"><option value="none">なし</option><option value="daily">毎日</option><option value="weekly">毎週（期限と同じ曜日）</option></select></label></div>
+      <div class="flow-fields-row momentum-fields"><label>状態<select id="item-status" name="status"><option value="ready">着手できる</option><option value="waiting">待ち</option><option value="review">確認待ち</option></select></label><label>作業予定日（任意）<input id="item-planned" name="plannedOn" type="date"></label></div><label class="momentum-fields">待っていること（任意）<input id="item-wait-note" name="waitNote" maxlength="300" placeholder="例：先方の返答待ち"></label><div class="flow-fields-row"><label>重要度<select id="item-priority" name="priority"><option value="0">通常</option><option value="1">重要</option><option value="2">最重要</option></select></label><label>繰り返し<select id="item-repeat" name="repeat"><option value="none">なし</option><option value="daily">毎日</option><option value="weekly">毎週（期限と同じ曜日）</option></select></label></div>
       <small>自動作成は起動時・日付変更時。開いていなかった日の分も追加します。</small>
       <details id="resource-fields"><summary>必要なURL・定型文・メモをまとめる</summary>
         <label>保存済みセット<select id="item-set" name="set"><option value="">選択しない</option></select></label>
@@ -76,6 +77,7 @@
   <dialog id="backup"><div class="dialog-head"><h2>バックアップ・復元</h2><button data-close="backup" aria-label="閉じる">×</button></div><p>登録した内容は、この端末のこのブラウザに保存されます。ブラウザのデータを消す前や、端末を変えるときにバックアップしてください。</p><button id="export" class="primary wide">↓ バックアップを保存</button><hr><h3>バックアップから復元</h3><p>現在の全項目をファイルの内容に置き換えます。</p><label class="file-label">JSONファイルを選択<input id="import" type="file" accept=".json,application/json"></label><p id="backup-status" role="status"></p></dialog>
   <dialog id="routine-editor"><div class="dialog-head"><h2>いつもの作業を編集</h2><button data-close="routine-editor" aria-label="閉じる">×</button></div><p>毎日使う順番で登録。完了チェックは日付が変わるとリセットされます。</p><div id="routine-edit-list"></div><button id="routine-add">＋ グループ</button><p id="routine-error" class="form-error" role="alert"></p><div class="dialog-actions"><button data-close="routine-editor">キャンセル</button><button id="routine-save" class="primary">保存する</button></div></dialog>
   <dialog id="flow-manager"><div class="dialog-head"><h2 id="flow-manager-title"></h2><button data-close="flow-manager" aria-label="閉じる">×</button></div><div id="flow-manager-body"></div></dialog>
+  <dialog id="momentum-dialog"><div class="dialog-head"><h2 id="momentum-title"></h2><button data-close="momentum-dialog" aria-label="閉じる">×</button></div><div id="momentum-body"></div></dialog>
   <dialog id="confirm"><h2 id="confirm-title"></h2><p id="confirm-body"></p><div class="dialog-actions"><button id="confirm-no">キャンセル</button><button id="confirm-yes" class="primary">実行する</button></div></dialog>
   <div id="toast" class="toast" role="status" hidden><span></span><button id="undo" hidden>元に戻す</button></div>
   <noscript>Work Dockを使うには、ブラウザのJavaScriptを有効にしてください。</noscript>
