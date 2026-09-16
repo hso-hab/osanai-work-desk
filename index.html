@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#176c59">
   <meta name="description" content="サイト、今日のタスク、定型文、メモをひとつのデスクに。毎日の探す・開く・コピーを短く。">
   <title>Work Dock | 業務ホーム</title>
-  <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css?v=2.4">
+  <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css?v=2.5">
   <script defer src="core.js?v=2.4"></script><script defer src="vendor/lp-core.js?v=2.4"></script><script defer src="vendor/ad-core.js?v=2.4"></script><script defer src="insights.js?v=2.4"></script><script defer src="home.js?v=2.4"></script><script defer src="flow.js?v=2.4"></script><script defer src="momentum.js?v=2.4"></script><script defer src="speed.js?v=2.4"></script><script defer src="journey.js?v=2.4"></script><script defer src="app.js?v=2.4"></script>
 </head>
 <body>
@@ -20,11 +20,12 @@
       <button data-view="note"><span>▧</span>メモ</button>
       <button data-view="favorite"><span>☆</span>お気に入り</button>
     </nav>
-    <div class="sidebar-foot"><div class="local-dot">このブラウザに保存</div><p>端末間の自動同期はありません。</p><button id="backup-open" class="subtle">↥ バックアップ・復元</button><small>WORK DOCK / 2.4</small></div>
+    <div class="sidebar-foot"><a class="ai-panel-nav" href="ai-panel/">✎ AI作業パネル →</a><div class="local-dot">このブラウザに保存</div><p>端末間の自動同期はありません。</p><button id="backup-open" class="subtle">↥ バックアップ・復元</button><small>WORK DOCK / 2.5</small></div>
   </aside>
   <main>
     <header class="topbar"><span class="workspace-label">DAILY WORK HOME</span><button id="add-main" class="primary">＋ タスクを追加</button></header>
     <section class="welcome"><div><p id="date-label" class="eyebrow"></p><h1 id="page-title">おかえりなさい。</h1><p id="page-subtitle">いつもの仕事は、ここから。</p></div><div class="daily-stat"><span class="stat-icon">✓</span><div><strong id="remaining">0</strong><span>今日までの未完了</span></div></div></section>
+    <a class="ai-panel-launch" href="ai-panel/"><span><strong>✎ AI作業パネル</strong><small>案件を選んで依頼をコピー。引き継ぎも、修正指示も。</small></span><span aria-hidden="true">開く →</span></a>
     <div class="searchbox"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="サイト・やること・定型文・メモを検索" aria-label="すべての項目を検索"><kbd>/</kbd></div>
     <p id="notice" role="alert" hidden></p>
     <div id="active-timer" class="active-timer" hidden></div>
